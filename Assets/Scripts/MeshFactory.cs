@@ -4,14 +4,14 @@ using UnityEngine;
 
 public class MeshFactory : MonoBehaviour
 {
-    private static void CreateVoxelMesh(ref MeshFilter filter, CPUVoxelVolume volume)
+    private static void CreateVoxelMesh(ref MeshFilter filter, VoxelVolume volume)
     {
         if (filter == null)
         {
             return;
         }
 
-        int filledCount = volume.GetFilledVoxelCount();
+        int filledCount = volume._GetFilledVoxelCount();
 
         Vector3[] verts = new Vector3[(filledCount * 24)];
         int[] inds = new int[(filledCount * 36)];
@@ -25,10 +25,10 @@ public class MeshFactory : MonoBehaviour
             {
                 for (int z = 0; z < volume.depth; z++)
                 {
-                    if (volume.GetVoxelValue(x, y, z))
+                    if (volume.GetVoxelValue(x, y, z) == 1)
                     {
                         Vector3 pos = volume.GetCoordinate(x, y, z);
-                        Vector3 size = volume.voxelSize;
+                        Vector3 size = volume.GetVolumeSize();
 
                         // Face: UP             
                         verts[0 + 24 * count] = (new Vector3(pos.x - (size.x / 2.0f), pos.y + (size.y / 2.0f), pos.z + (size.z / 2.0f)));
@@ -137,7 +137,7 @@ public class MeshFactory : MonoBehaviour
         //mf.mesh.RecalculateTangents();
     }
 
-    public static GameObject CreateVoxelObject(string name, CPUVoxelVolume volume)
+    public static GameObject CreateVoxelObject(string name, VoxelVolume volume)
     {
         GameObject go = new GameObject(name);
 

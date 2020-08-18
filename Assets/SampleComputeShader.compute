@@ -1,22 +1,229 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
+#pragma kernel FillVolume
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture2D<float4> Result;
+#include "UnityCG.cginc"
 
-//RWStructuredBuffer<VecMatPair> vertexBuffer;
-//RWStructuredBuffer<VecMatPair> indexBuffer;
+CBUFFER_START(VoxelData)
+int VoxelCount;
+int Width;
+int Height;
+int Depth;
+float UnitSize;
+float3 Start;
+CBUFFER_END
 
-//int width;
-//int height;
-//int depth;
-//float unitSize;
+RWStructuredBuffer<float3> VertexBuffer;
+RWStructuredBuffer<int> IndexBuffer;
+int IndexCount;
 
-[numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+RWStructuredBuffer<int> Voxels;
+
+int FilledVoxelCount;
+
+float3 GetVoxelCoordinate(int x, int y, int z) 
 {
-    // TODO: insert actual code here!
+	return Start + float3(x, y, z) * UnitSize;
+}
 
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+int GetGridValue(int x, int y, int z)
+{
+	return Voxels[x + Width * (y + Height * z)];
+}
+
+void SetGridValue(int x, int y, int z, int val)
+{
+	Voxels[x + Width * (y + Height * z)] = val;
+}
+
+float2 GetBoxInterval(float3 boxCenter, float3 boxSize, float3 axis)
+{
+	float2 interval;
+
+	float3 p1 = boxCenter - boxSize / 2.0;
+	float3 p2 = boxCenter + boxSize / 2.0;
+
+	float3 minP = p1;//float3(min(p1.x, p2.x), min(p1.y, p2.y), min(p1.z, p2.z));
+	float3 maxP = p2;//float3(max(p1.x, p2.x), max(p1.y, p2.y), max(p1.z, p2.z));
+
+	float3 v0 = float3(minP.x, maxP.y, maxP.z);
+	float3 v1 = float3(minP.x, maxP.y, minP.z);
+	float3 v2 = float3(minP.x, minP.y, maxP.z);
+	float3 v3 = float3(minP.x, minP.y, minP.z);
+	float3 v4 = float3(maxP.x, maxP.y, maxP.z);
+	float3 v5 = float3(maxP.x, maxP.y, minP.z);
+	float3 v6 = float3(maxP.x, minP.y, maxP.z);
+	float3 v7 = float3(maxP.x, minP.y, minP.z);
+
+	float mn = 99999999;
+	float mx = -99999999;
+
+	float projection = dot(axis, v0);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v1);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v2);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v3);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v4);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v5);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v6);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(axis, v7);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	interval.x = mn;
+	interval.y = mx;
+
+	return interval;
+}
+
+float2 GetTriangleInterval(float3 tri0, float3 tri1, float3 tri2, float3 axis)
+{
+	float2 interval;
+
+	float mn = 999999999;
+	float mx = -999999999;
+
+	float projection = dot(tri0, axis);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(tri1, axis);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	projection = dot(tri2, axis);
+
+	mn = min(mn, projection);
+	mx = max(mx, projection);
+
+	interval.x = mn;
+	interval.y = mx;
+
+	return interval;
+}
+
+int OverlapAxis(float3 tri0, float3 tri1, float3 tri2, float3 boxCenter, float3 boxSize, float3 axis)
+{
+	float2 a = GetBoxInterval(boxCenter, boxSize, axis);
+	float2 b = GetTriangleInterval(tri0, tri1, tri2, axis);
+
+	if (((b.x <= a.y) && (a.x <= b.y)))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+int TriangleBoxIntersection(float3 tri0, float3 tri1, float3 tri2, float3 boxCenter, float3 boxSize)
+{
+	float3 triangleEdge0 = tri1 - tri0;
+	float3 triangleEdge1 = tri2 - tri1;
+	float3 triangleEdge2 = tri0 - tri2;
+
+	float3 boxNormal0 = float3(1, 0, 0);
+	float3 boxNormal1 = float3(0, 1, 0);
+	float3 boxNormal2 = float3(0, 0, 1);
+
+	float3 triangleNormal = cross(triangleEdge0, triangleEdge1);
+
+	float3 a0 = float3(0, -triangleEdge0.z, triangleEdge0.y);
+	float3 a1 = float3(0, -triangleEdge1.z, triangleEdge1.y);
+	float3 a2 = float3(0, -triangleEdge2.z, triangleEdge2.y);
+	float3 a3 = float3(triangleEdge0.z, 0, -triangleEdge0.x);
+	float3 a4 = float3(triangleEdge1.z, 0, -triangleEdge1.x);
+	float3 a5 = float3(triangleEdge2.z, 0, -triangleEdge2.x);
+	float3 a6 = float3(-triangleEdge0.y, triangleEdge0.x, 0);
+	float3 a7 = float3(-triangleEdge1.y, triangleEdge1.x, 0);
+	float3 a8 = float3(-triangleEdge2.y, triangleEdge2.x, 0);
+
+	if (OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, boxNormal0) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, boxNormal1) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, boxNormal2) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, triangleNormal) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a0) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a1) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a2) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a3) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a4) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a5) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a6) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a7) == 0 ||
+		OverlapAxis(tri0, tri1, tri2, boxCenter, boxSize, a8) == 0)
+	{
+		return 0;
+	}
+
+	return 1;
+}
+
+[numthreads(8,8,8)]
+void FillVolume(uint3 id : SV_DispatchThreadID)
+{
+	if (id.x >= Width)
+	{
+		return;
+	}
+
+	if (id.y >= Height)
+	{
+		return;
+	}
+
+	if (id.z >= Depth)
+	{
+		return;
+	}
+
+	float3 voxelPos = GetVoxelCoordinate(id.x, id.y, id.z);
+	float3 voxelSize = float3(UnitSize, UnitSize, UnitSize);
+
+	for (int i = 0; i < IndexCount; i += 3)
+	{
+		int i0 = IndexBuffer[i + 0];
+		int i1 = IndexBuffer[i + 1];
+		int i2 = IndexBuffer[i + 2];
+
+		float3 v0 = VertexBuffer[i0];
+		float3 v1 = VertexBuffer[i1];
+		float3 v2 = VertexBuffer[i2];
+
+		if (TriangleBoxIntersection(v0, v1, v2, voxelPos, voxelSize) > 0)
+		{
+			SetGridValue(id.x, id.y, id.z, 1);
+			/*if (GetGridValue(id.x, id.y, id.z) == 0)
+			{
+				FilledVoxelCount++;
+				SetGridValue(id.x, id.y, id.z, 1);
+			}*/
+		}
+	}
 }

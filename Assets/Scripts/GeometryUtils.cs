@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class GeometryUtils 
 {
-    public static bool TriangleBoxIntersection(Vector3[] triangle, Vector3 boxCenter, Vector3 boxSize)
+    public static int TriangleBoxIntersection(Vector3[] triangle, Vector3 boxCenter, Vector3 boxSize)
     {
         Vector3 triangleEdge0 = triangle[1] - triangle[0];
         Vector3 triangleEdge1 = triangle[2] - triangle[1];
@@ -49,13 +49,13 @@ public class GeometryUtils
         {
             Vector3 axis = test[i];
 
-            if (!OverlapAxis(triangle, boxCenter, boxSize, axis))
+            if (OverlapAxis(triangle, boxCenter, boxSize, axis) == 0)
             {
-                return false;
+                return 0;
             }
         }
 
-        return true;
+        return 1;
     }
 
     private static Vector2 GetBoxInterval(Vector3 boxCenter, Vector3 boxSize, Vector3 axis)
@@ -64,11 +64,11 @@ public class GeometryUtils
 
         Bounds b = new Bounds(boxCenter, boxSize);
 
-        Vector3 p1 = boxCenter + boxSize;
-        Vector3 p2 = boxCenter - boxSize;
+        Vector3 p1 = boxCenter + boxSize / 2;
+        Vector3 p2 = boxCenter - boxSize / 2;
 
-        Vector3 min = b.min;
-        Vector3 max = b.max;
+        Vector3 min = p2;
+        Vector3 max = p1;
 
         Vector3[] vertex =
         {
@@ -119,11 +119,16 @@ public class GeometryUtils
         return interval;
     }
 
-    private static bool OverlapAxis(Vector3[] triangle, Vector3 boxCenter, Vector3 boxSize, Vector3 axis)
+    private static int OverlapAxis(Vector3[] triangle, Vector3 boxCenter, Vector3 boxSize, Vector3 axis)
     {
         var a = GetBoxInterval(boxCenter, boxSize, axis);
         var b = GetTriangleInterval(triangle, axis);
 
-        return ((b.x <= a.y) && (a.x <= b.y));
+        if (((b.x <= a.y) && (a.x <= b.y)))
+        {
+            return 1;
+        }
+
+        return 0;
     }
 }
