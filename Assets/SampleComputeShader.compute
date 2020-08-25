@@ -1,39 +1,31 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel FillVolume
+#pragma kernel FillTree
 
 #include "UnityCG.cginc"
 
 CBUFFER_START(VoxelData)
+int IndexCount;
 int VoxelCount;
-int Width;
-int Height;
-int Depth;
-float UnitSize;
-float3 Start;
+int MaxDepth;
 CBUFFER_END
+
+struct VoxelOctreeNode 
+{
+	int Index;
+	int CurrentDepth;
+	int FirstChild;
+	int Parent;
+	int FirstLeaf;
+	int LastLeaf;
+	float3 Position;
+	float Size;
+	int Value;
+};
+
+RWStructuredBuffer<VoxelOctreeNode> VoxelOctreeBuffer;
 
 RWStructuredBuffer<float3> VertexBuffer;
 RWStructuredBuffer<int> IndexBuffer;
-int IndexCount;
-
-RWStructuredBuffer<int> Voxels;
-
-int FilledVoxelCount;
-
-float3 GetVoxelCoordinate(int x, int y, int z) 
-{
-	return Start + float3(x, y, z) * UnitSize;
-}
-
-int GetGridValue(int x, int y, int z)
-{
-	return Voxels[x + Width * (y + Height * z)];
-}
-
-void SetGridValue(int x, int y, int z, int val)
-{
-	Voxels[x + Width * (y + Height * z)] = val;
-}
 
 float2 GetBoxInterval(float3 boxCenter, float3 boxSize, float3 axis)
 {
@@ -185,45 +177,71 @@ int TriangleBoxIntersection(float3 tri0, float3 tri1, float3 tri2, float3 boxCen
 	return 1;
 }
 
-[numthreads(8,8,8)]
-void FillVolume(uint3 id : SV_DispatchThreadID)
+[numthreads(8, 1, 1)]
+void FillTree(uint3 id : SV_DispatchThreadID) 
 {
-	if (id.x >= Width)
+	if (id.x >= IndexCount / 3)
 	{
 		return;
 	}
 
-	if (id.y >= Height)
+	int index = id.x * 3;
+	int i0 = IndexBuffer[index + 0];
+	int i1 = IndexBuffer[index + 1];
+	int i2 = IndexBuffer[index + 2];
+
+	float3 v0 = VertexBuffer[i0];
+	float3 v1 = VertexBuffer[i1];
+	float3 v2 = VertexBuffer[i2];
+
+	int min = 0;
+
+	for (int i = 0; i <= MaxDepth - 1; i++)
 	{
-		return;
+		min += (int)pow(8, i);
 	}
 
-	if (id.z >= Depth)
+	for (int i = min; i < VoxelCount;)
 	{
-		return;
-	}
-
-	float3 voxelPos = GetVoxelCoordinate(id.x, id.y, id.z);
-	float3 voxelSize = float3(UnitSize, UnitSize, UnitSize);
-
-	for (int i = 0; i < IndexCount; i += 3)
-	{
-		int i0 = IndexBuffer[i + 0];
-		int i1 = IndexBuffer[i + 1];
-		int i2 = IndexBuffer[i + 2];
-
-		float3 v0 = VertexBuffer[i0];
-		float3 v1 = VertexBuffer[i1];
-		float3 v2 = VertexBuffer[i2];
-
-		if (TriangleBoxIntersection(v0, v1, v2, voxelPos, voxelSize) > 0)
+		int parentIndex = VoxelOctreeBuffer[i].Parent;
+		int lastSkip = 0;
+		while (parentIndex >= 0)
 		{
-			SetGridValue(id.x, id.y, id.z, 1);
-			/*if (GetGridValue(id.x, id.y, id.z) == 0)
+			int intersecting = TriangleBoxIntersection(v0, v1, v2, VoxelOctreeBuffer[parentIndex].Position, float3(VoxelOctreeBuffer[parentIndex].Size, VoxelOctreeBuffer[parentIndex].Size, VoxelOctreeBuffer[parentIndex].Size));
+
+			if (intersecting == 1)
 			{
-				FilledVoxelCount++;
-				SetGridValue(id.x, id.y, id.z, 1);
-			}*/
+				break;
+			}
+			else
+			{
+				lastSkip = VoxelOctreeBuffer[parentIndex].LastLeaf;
+				parentIndex = VoxelOctreeBuffer[parentIndex].Parent;
+			}
+		}
+
+		if (lastSkip == 0)
+		{
+			for (int j = i; j < i + 8; j++)
+			{
+				int intersecting = TriangleBoxIntersection(v0, v1, v2, VoxelOctreeBuffer[j].Position, float3(VoxelOctreeBuffer[j].Size, VoxelOctreeBuffer[j].Size, VoxelOctreeBuffer[j].Size));
+
+				if (intersecting == 1)
+				{
+					/*if (VoxelOctreeBuffer[j].Value == 0)
+					{
+						FilledNodes.Add(VoxelOctreeBuffer[j]);
+					}*/
+
+					VoxelOctreeBuffer[j].Value = 1;
+				}
+			}
+
+			i += 8;
+		}
+		else
+		{
+			i = lastSkip + 1;
 		}
 	}
 }

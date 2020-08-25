@@ -28,20 +28,19 @@ public class VoxelManager : MonoBehaviour
     }
 
     string voxelCount = "VoxelCount";
-    string unitSize = "UnitSize";
-    string start = "Start";
-    string width = "Width";
-    string height = "Height";
-    string depth = "Depth";
+    string maxDepth = "MaxDepth";
     string vertexBuffer = "VertexBuffer";
     string indexBuffer = "IndexBuffer";
     string indexCount = "IndexCount";
-    string voxels = "Voxels";
-    string filledCount = "FilledVoxelCount";
-    string fillVolumeKernel = "FillVolume";
+    string voxelOctreeBuffer = "VoxelOctreeBuffer";
+    string fillTreeKernel = "FillTree";
 
     public int resolution = 16;
+    public int voxelTreeDepth = 1;
     public ComputeShader voxelShader;
+    Octree octree;
+    VoxelOctree voxelOctree;
+    VoxelOctree2 voxelOctree2;
 
     // Start is called before the first frame update
     void Start()
@@ -57,13 +56,13 @@ public class VoxelManager : MonoBehaviour
 
     public void Voxelize()
     {
-        //var volume0 = CPUVoxelizer.Voxelize(gameObject, resolution);
-        //MeshFactory.CreateVoxelObject(name + "_Voxelized1", volume0);
-
-        var volume = CPUVoxelizer.CreateVoxelVolume(gameObject, resolution);
-        volume.InitGrid();
+        //voxelOctree2 = CPUVoxelizer.BuildVoxelTreeS2(gameObject, voxelTreeDepth);
+        //var nodes = voxelOctree2.GetFilledNodes();
+        //MeshFactory.CreateVoxelObject(name + "_Voxelized1", nodes);
 
         MeshFilter filter = GetComponent<MeshFilter>();
+        float maxSize = Mathf.Max(filter.mesh.bounds.size.x, filter.mesh.bounds.size.y, filter.mesh.bounds.size.z);
+        voxelOctree2 = new VoxelOctree2(filter.mesh.bounds.center, maxSize, voxelTreeDepth);
 
         var verts = filter.mesh.vertices;
         int vCount = verts.Length;
@@ -77,25 +76,28 @@ public class VoxelManager : MonoBehaviour
         var indBuffer = new ComputeBuffer(indCount, indSize);
         indBuffer.SetData(inds);
 
-        voxelShader.SetInt(voxelCount, volume.width * volume.height * volume.depth);
-
-        voxelShader.SetInt(width, volume.width);
-        voxelShader.SetInt(height, volume.height);
-        voxelShader.SetInt(depth, volume.depth);
-
-        voxelShader.SetFloat(unitSize, volume.unitSize);
-
-        voxelShader.SetVector(start, volume.start);
-
-        voxelShader.SetBuffer(voxelShader.FindKernel(fillVolumeKernel), vertexBuffer, vertBuffer);
-        voxelShader.SetBuffer(voxelShader.FindKernel(fillVolumeKernel), indexBuffer, indBuffer);
         voxelShader.SetInt(indexCount, indCount);
+        voxelShader.SetInt(voxelCount, voxelOctree2.Nodes.Length);
+        voxelShader.SetInt(maxDepth, voxelOctree2.MaxDepth);
 
-        voxelShader.SetBuffer(voxelShader.FindKernel(fillVolumeKernel), voxels, volume.gridBuffer);
+        var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
+        voxelBuffer.SetData(voxelOctree2.Nodes);
 
-        voxelShader.Dispatch(voxelShader.FindKernel(fillVolumeKernel), volume.width, volume.height, volume.depth);
+        voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), vertexBuffer, vertBuffer);
+        voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), indexBuffer, indBuffer);
+        voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), voxelOctreeBuffer, voxelBuffer);
+        voxelShader.Dispatch(voxelShader.FindKernel(fillTreeKernel), indCount, 1, 1);
+        voxelBuffer.GetData(voxelOctree2.Nodes);
+        var nodes1 = voxelOctree2.GetFilledNodes();
 
-        volume.RetrieveGrid();
-        MeshFactory.CreateVoxelObject(name + "_Voxelized", volume);
+        MeshFactory.CreateVoxelObject(name + "_Voxelized1", nodes1);
+    }
+
+    private void OnDrawGizmos()
+    {
+        //if (voxelOctree2 != null)
+        //{
+        //    voxelOctree2.DrawTree();
+        //}
     }
 }

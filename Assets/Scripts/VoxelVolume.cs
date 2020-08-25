@@ -10,8 +10,11 @@ public class VoxelVolume
     public int[] grid;
     public Vector3 currentPos;
     public Vector3 currentXYZ;
-    protected int filledCount;
+    public int filledCount;
+    public int[] gpuFilledCount;
     public ComputeBuffer gridBuffer;
+    public ComputeBuffer filledCountBuffer;
+    public ComputeBuffer argBuffer;
 
     public VoxelVolume(int w, int h, int d, float unit, Vector3 start)
     {
@@ -21,6 +24,7 @@ public class VoxelVolume
         unitSize = unit;
         grid = new int[w * h * d];
         filledCount = 0;
+        gpuFilledCount = new int[] { 0 };
         this.start = start;
     }
 
@@ -40,7 +44,12 @@ public class VoxelVolume
     }
 
     public void SetVoxelValue(int x, int y, int z, int val)
-    {        
+    {
+        if (GetVoxelValue(x, y, z) == 0 && val == 1)
+        {
+            filledCount++;
+        }
+
         grid[x + width * (y + height * z)] = val;
     }
 
@@ -79,6 +88,10 @@ public class VoxelVolume
         gridBuffer = new ComputeBuffer(width * height * depth, sizeof(int));
 
         gridBuffer.SetData(grid);
+
+        filledCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Counter);
+        filledCountBuffer.SetCounterValue(0);
+        argBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.IndirectArguments);
     }
 
     public void RetrieveGrid()
@@ -89,6 +102,16 @@ public class VoxelVolume
         }
 
         gridBuffer.GetData(grid);
+
+        //filledCountBuffer.GetData(filledCount);
+    }
+
+    public int RetrieveGPUFilledCount()
+    {        
+        ComputeBuffer.CopyCount(filledCountBuffer, argBuffer, 0);
+        argBuffer.GetData(gpuFilledCount);
+
+        return gpuFilledCount[0];
     }
 
     public void Dispose()
@@ -97,10 +120,20 @@ public class VoxelVolume
         {
             gridBuffer.Release();
         }
+
+        if (filledCountBuffer.IsValid())
+        {
+            filledCountBuffer.Release();
+        }
     }
 
     public Vector3 GetVolumeSize()
     {
         return new Vector3(unitSize, unitSize, unitSize);
+    }
+
+    public int GetTotalVoxelCount()
+    {
+        return width * height * depth;
     }
 }

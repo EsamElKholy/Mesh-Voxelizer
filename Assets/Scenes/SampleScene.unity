@@ -287,8 +287,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0.013848132, y: -0.98483145, z: 0.14521703, w: 0.09395378}
+  m_LocalPosition: {x: 3.4446654, y: 13.676737, z: 21.293888}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -326,7 +326,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 312489527e4d9f940b3812f9c0904ac0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  resolution: 64
+  resolution: 1
+  voxelTreeDepth: 7
   voxelShader: {fileID: 7200000, guid: df1e3f040aefe9a45ac80911ed232fd3, type: 3}
 --- !u!136 &1236202982
 CapsuleCollider:
@@ -386,7 +387,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1236202980}
-  m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6d0756dea5610a249827a6ef31f507a3, type: 3}
 --- !u!4 &1236202985
 Transform:
   m_ObjectHideFlags: 0
