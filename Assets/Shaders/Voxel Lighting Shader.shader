@@ -1,4 +1,5 @@
-﻿Shader "Custom/My First Lighting Shader1" {
+﻿Shader "Custom/Voxel Lighting Shader" 
+{
 
 	Properties {
 		_Tint ("Tint", Color) = (1, 1, 1, 1)
@@ -36,7 +37,7 @@
 
 			#define FORWARD_BASE_PASS
 
-			#include "My Lighting1.cginc"
+			#include "Voxel Lighting.cginc"
 
 			ENDCG
 		}
@@ -61,7 +62,7 @@
 			#pragma geometry MyGeometryProgram
 			#pragma fragment MyFragmentProgram
 
-			#include "My Lighting1.cginc"
+			#include "Voxel Lighting.cginc"
 
 			ENDCG
 		}
@@ -83,7 +84,7 @@
 			#pragma geometry MyGeometryProgram
 			#pragma fragment MyShadowFragmentProgram
 
-			#include "My Shadows1.cginc"
+			#include "Voxel Shadows.cginc"
 
 			ENDCG
 		}

@@ -16,6 +16,8 @@ float _BumpScale, _DetailBumpScale;
 float _Metallic;
 float _Smoothness;
 
+uniform float4 _SlicingPlane;
+
 struct VertexData 
 {
 	float4 vertex : POSITION;
@@ -51,6 +53,16 @@ struct Interpolators
 	#endif
 };
 
+void Slice(float4 plane, float3 fragPos)
+{
+	float distance = dot(fragPos.xyz, plane.xyz) + plane.w;
+
+	if (distance < 0)
+	{
+		discard;
+	}
+}
+
 void ComputeVertexLightColor (inout Interpolators i) 
 {
 	#if defined(VERTEXLIGHT_ON)
@@ -72,8 +84,8 @@ float3 CreateBinormal (float3 normal, float3 tangent, float binormalSign)
 Interpolators MyVertexProgram (VertexData v) 
 {
 	Interpolators i;
+	i.worldPos = mul(UNITY_MATRIX_M, v.vertex);
 	i.pos = UnityObjectToClipPos(v.vertex);
-	i.worldPos = mul(unity_ObjectToWorld, v.vertex);
 	i.normal = UnityObjectToWorldNormal(v.normal);
 
 	#if defined(BINORMAL_PER_FRAGMENT)
@@ -149,6 +161,7 @@ void InitializeFragmentNormal(inout Interpolators i)
 
 float4 MyFragmentProgram (Interpolators i) : SV_TARGET 
 {
+	Slice(_SlicingPlane, i.worldPos);
 	InitializeFragmentNormal(i);
 
 	float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);

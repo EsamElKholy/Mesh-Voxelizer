@@ -47,11 +47,10 @@ public class VoxelManager : MonoBehaviour
     string constructMeshKernel1 = "ConstructMesh1";
     string buildTreeKernel = "BuildTree";
 
-    public int resolution = 16;
     [Range(1, 8)]
     public int voxelTreeDepth = 1;
     public ComputeShader voxelShader;
-    VoxelOctree2 voxelOctree2;
+    VoxelOctree voxelOctree2;
     int currentDepth = 0;
 
     // Start is called before the first frame update
@@ -62,11 +61,37 @@ public class VoxelManager : MonoBehaviour
     }
     private void Update()
     {
+        if (Input.GetKeyUp(KeyCode.PageUp))
+        {
+            voxelTreeDepth++;
+            voxelTreeDepth = Mathf.Clamp(voxelTreeDepth, 1, 8);
+        }
+
+        if (Input.GetKeyUp(KeyCode.PageDown))
+        {
+            voxelTreeDepth--;
+            voxelTreeDepth = Mathf.Clamp(voxelTreeDepth, 1, 8);
+        }
+
         if (currentDepth != voxelTreeDepth)
         {
             currentDepth = voxelTreeDepth;
-            Destroy(transform.GetChild(0).gameObject);
+            var child = transform.GetChild(0);
+            Deform deform = child.GetComponent<Deform>();
+            var pivot = deform.pivot;
+            var factor = deform.deformFactor;
+            var pos = child.position;
+            var rot = child.rotation;
+
+            DestroyImmediate(transform.GetChild(0).gameObject);
             Voxelize();
+            child = transform.GetChild(0);
+            var d1 = child.GetComponent<Deform>();
+            d1.deformFactor = factor;
+            d1.pivot = pivot;
+            d1.UpdateMaterial();
+            child.position = pos;
+            child.rotation = rot;            
         }
     }
 
@@ -75,7 +100,7 @@ public class VoxelManager : MonoBehaviour
         MeshFilter filter = GetComponent<MeshFilter>();
 
         float maxSize1 = Mathf.Max(filter.mesh.bounds.size.x, filter.mesh.bounds.size.y, filter.mesh.bounds.size.z);
-        voxelOctree2 = new VoxelOctree2(filter.mesh.bounds.center, maxSize1*1, voxelTreeDepth);
+        voxelOctree2 = new VoxelOctree(filter.mesh.bounds.center, maxSize1, voxelTreeDepth);
 
         var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
         voxelBuffer.SetData(voxelOctree2.Nodes);
@@ -85,7 +110,7 @@ public class VoxelManager : MonoBehaviour
         voxelShader.SetInt(voxelCount, voxelOctree2.Nodes.Length);
 
         voxelShader.SetBuffer(voxelShader.FindKernel(buildTreeKernel), voxelOctreeBuffer, voxelBuffer);
-        voxelShader.Dispatch(voxelShader.FindKernel(buildTreeKernel), voxelOctree2.Nodes.Length/64 + 1, 1, 1);
+        voxelShader.Dispatch(voxelShader.FindKernel(buildTreeKernel), voxelOctree2.NodeCount/64 + 1, 1, 1);
 
         var verts = filter.mesh.vertices;
         int vCount = verts.Length;
@@ -104,14 +129,14 @@ public class VoxelManager : MonoBehaviour
         voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), vertexBuffer, vertBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), indexBuffer, indBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), voxelOctreeBuffer, voxelBuffer);
-        voxelShader.Dispatch(voxelShader.FindKernel(fillTreeKernel), indCount, 1, 1);
+        voxelShader.Dispatch(voxelShader.FindKernel(fillTreeKernel), (indCount / (3*64)) + 1, 1, 1);
      
 
         var filledVoxelsBuffer = new ComputeBuffer(voxelOctree2.NodeCount, Marshal.SizeOf(typeof(Node)), ComputeBufferType.Append);
         filledVoxelsBuffer.SetCounterValue(0);
         voxelShader.SetBuffer(voxelShader.FindKernel(getFilledVoxelsKernel), voxelOctreeBuffer, voxelBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(getFilledVoxelsKernel), filledVoxelPositionsBuffer, filledVoxelsBuffer);
-        voxelShader.Dispatch(voxelShader.FindKernel(getFilledVoxelsKernel), voxelOctree2.NodeCount, 1, 1);
+        voxelShader.Dispatch(voxelShader.FindKernel(getFilledVoxelsKernel), voxelOctree2.NodeCount / 64 + 1, 1, 1);
 
         int[] counter = new int[1] { 0 };
         ComputeBuffer appendBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.IndirectArguments);
@@ -135,16 +160,19 @@ public class VoxelManager : MonoBehaviour
         voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), outVertexBuffer, vertBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), outIndexBuffer, indBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), _filledVoxelPositionsBuffer, filledVoxels);
-        voxelShader.Dispatch(voxelShader.FindKernel(constructMeshKernel1), counter[0], 1, 1);
+        voxelShader.Dispatch(voxelShader.FindKernel(constructMeshKernel1), counter[0] / 64 + 1, 1, 1);
         //var nodes1 = voxelOctree2.GetFilledNodes();
 
         //MeshFactory.CreateVoxelObject(name + "_Voxelized1", nodes);
 
         GameObject go = new GameObject(name + "_Voxelized1");
         go.AddComponent<Deform>();
+        var ms = go.AddComponent<MeshSlicer>();
+        ms.slicingPlane = GetComponent<MeshSlicer>().slicingPlane;
         go.transform.SetParent(transform);
+        go.transform.localPosition = Vector3.zero;
 
-        GetComponent<Renderer>().enabled = false;
+        //GetComponent<Renderer>().enabled = false;
 
         var filter1 = go.AddComponent<MeshFilter>();
         var renderer1 = go.AddComponent<MeshRenderer>();
@@ -156,14 +184,14 @@ public class VoxelManager : MonoBehaviour
         indBuffer.GetData(ind);
         filter1.mesh.vertices = v;
         filter1.mesh.triangles = ind;
-        filter1.mesh.Optimize();
-        filter1.mesh.RecalculateNormals();
         filter1.GetComponent<Renderer>().bounds.Expand(1000);
+
         filledVoxels.Dispose();
         filledVoxelsBuffer.Dispose();
         indBuffer.Dispose();
         vertBuffer.Dispose();
         voxelBuffer.Dispose();
+        appendBuffer.Dispose();
     }
 
     //private void OnDrawGizmos()

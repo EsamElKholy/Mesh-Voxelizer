@@ -39,6 +39,17 @@ float3 CreateBinormal (float3 normal, float3 tangent, float binormalSign)
 uniform float _VoxelSize;
 uniform float4 _CenterPivot;
 uniform float _DeformFactor;
+uniform float4 _SlicingPlane;
+
+void Slice(float4 plane, float3 fragPos)
+{
+	float distance = dot(fragPos.xyz, plane.xyz) + plane.w;
+
+	if (distance > 0)
+	{
+		discard;
+	}
+}
 
 GeomData MyVertexProgram (VertexData v)
 {
@@ -127,8 +138,8 @@ void MyGeometryProgram(point GeomData IN[1], inout TriangleStream<Interpolators>
 	// Position in view space
 	for (i = 0; i < 36; i++) 
 	{ 
+		v[i].worldPos = mul(UNITY_MATRIX_M, v[i].pos);
 		v[i].pos = UnityObjectToClipPos(v[i].pos);
-		v[i].worldPos = mul(unity_ObjectToWorld, v[i].pos);
 		v[i].normal = UnityObjectToWorldNormal(v[i].normal);
 
 		TRANSFER_SHADOW(v[i]);
@@ -177,6 +188,7 @@ UnityIndirect CreateIndirectLight (Interpolators i)
 
 float4 MyFragmentProgram (Interpolators i) : SV_TARGET 
 {
+	Slice(_SlicingPlane, i.worldPos);
 	float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
 
 	float3 albedo = _Tint.rgb;

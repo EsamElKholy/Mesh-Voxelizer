@@ -16,12 +16,24 @@ struct GeomData
 uniform float _VoxelSize;
 uniform float4 _CenterPivot;
 uniform float _DeformFactor;
+uniform float4 _SlicingPlane;
+
+void Slice(float4 plane, float3 fragPos)
+{
+	float distance = dot(fragPos.xyz, plane.xyz) + plane.w;
+
+	if (distance > 0)
+	{
+		discard;
+	}
+}
 
 #if defined(SHADOWS_CUBE)
 	struct Interpolators 
 	{
 		float4 position : SV_POSITION;
 		float3 lightVec : TEXCOORD0;
+		float3 worldPos : TEXCOORD4;
 	};
 
 	GeomData MyShadowVertexProgram (VertexData v)
@@ -29,10 +41,7 @@ uniform float _DeformFactor;
 		float3 dir = v.position.xyz - _CenterPivot.xyz;
 		dir = normalize(dir);
 		v.position.xyz = v.position.xyz + dir * _DeformFactor;
-		/*Interpolators i;
-		i.position = UnityObjectToClipPos(v.position);
-		i.lightVec =
-			mul(unity_ObjectToWorld, v.position).xyz - _LightPositionRange.xyz;*/
+
 		GeomData g;
 		g.position = v.position;
 		return g;
@@ -87,6 +96,7 @@ uniform float _DeformFactor;
 		// Position in view space
 		for (i = 0; i < 36; i++)
 		{
+			v[i].worldPos = mul(UNITY_MATRIX_M, v[i].position);
 			v[i].position = UnityObjectToClipPos(v[i].position);
 			v[i].lightVec = mul(unity_ObjectToWorld, v[i].position).xyz - _LightPositionRange.xyz;
 		}
@@ -104,6 +114,7 @@ uniform float _DeformFactor;
 
 	float4 MyShadowFragmentProgram (Interpolators i) : SV_TARGET 
 	{
+		Slice(_SlicingPlane, i.worldPos);
 		float depth = length(i.lightVec) + unity_LightShadowBias.x;
 		depth *= _LightPositionRange.w;
 		return UnityEncodeCubeShadowDepth(depth);
@@ -112,17 +123,15 @@ uniform float _DeformFactor;
 	struct Interpolators
 	{
 		float4 position : SV_POSITION;
+		float3 worldPos : TEXCOORD4;
 	};
 
-	GeomData MyShadowVertexProgram (VertexData v) : SV_POSITION
+	GeomData MyShadowVertexProgram (VertexData v)
 	{
-
 		float3 dir = v.position.xyz - _CenterPivot.xyz;
 		dir = normalize(dir);
 		v.position.xyz = v.position.xyz + dir * _DeformFactor;
-		/*float4 position =
-			UnityClipSpaceShadowCasterPos(v.position.xyz, v.normal);
-		return UnityApplyLinearShadowBias(position);*/
+
 		GeomData g;
 		g.position = v.position;
 		return g;
@@ -204,6 +213,7 @@ uniform float _DeformFactor;
 		// Position in view space
 		for (i = 0; i < 36; i++)
 		{
+			v[i].worldPos = mul(unity_ObjectToWorld, v[i].position);
 			v[i].position = UnityClipSpaceShadowCasterPos(v[i].position.xyz, normals[i].xyz);
 			UnityApplyLinearShadowBias(v[i].position);
 		}
@@ -219,9 +229,9 @@ uniform float _DeformFactor;
 		}
 	}
 
-
-	half4 MyShadowFragmentProgram () : SV_TARGET 
+	half4 MyShadowFragmentProgram (Interpolators i) : SV_TARGET
 	{
+		Slice(_SlicingPlane, i.worldPos);
 		return 0;
 	}
 #endif

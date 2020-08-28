@@ -4,13 +4,13 @@ using UnityEngine;
 
 public class Deform : MonoBehaviour
 {
-    public float speed = 30;
+    public float speed = 100;
     public float amount = 0.1f;
     public float rotationSpeed = 100;
     private new Renderer renderer;
     private Material material;
-    private Vector4 pivot;
-    private float deformFactor = 1;
+    public Vector4 pivot;
+    public float deformFactor = 0;
 
     // Start is called before the first frame update
     void Start()
@@ -70,22 +70,50 @@ public class Deform : MonoBehaviour
             if (Input.GetKey(KeyCode.RightArrow))
             {
                 ModifyFactor(amount * speed * Time.deltaTime);
+                Camera.main.transform.Translate(0, 0, -amount * speed *2* Time.deltaTime);
             }
 
             if (Input.GetKey(KeyCode.LeftArrow))
             {
                 ModifyFactor(-amount * speed * Time.deltaTime);
+                if (deformFactor > 0)
+                {
+                    Camera.main.transform.Translate(0, 0, amount * speed *2 * Time.deltaTime);
+                }
+            }
+        }
+
+        if (Input.GetKey(KeyCode.C))
+        {
+            if (Input.GetKey(KeyCode.RightArrow))
+            {
+                Camera.main.transform.Translate(0, 0, -amount * speed * 5 * Time.deltaTime);
+            }
+
+            if (Input.GetKey(KeyCode.LeftArrow))
+            {
+                Camera.main.transform.Translate(0, 0, amount * speed * 5 * Time.deltaTime);
+            }
+
+            if (Input.GetKey(KeyCode.UpArrow))
+            {
+                Camera.main.transform.Translate(0, amount * speed * 5 * Time.deltaTime, 0);
+            }
+
+            if (Input.GetKey(KeyCode.DownArrow))
+            {
+                Camera.main.transform.Translate(0, -amount * speed * 5 * Time.deltaTime, 0);
             }
         }
 
         if (Input.GetKey(KeyCode.E))
         {
-            transform.Rotate(Vector3.up, -rotationSpeed * Time.deltaTime, Space.World);
+            transform.parent.Rotate(Vector3.up, -rotationSpeed * Time.deltaTime, Space.World);
         }
 
         if (Input.GetKey(KeyCode.Q))
         {
-            transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
+            transform.parent.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
         }
 
         if (!renderer)
@@ -98,6 +126,11 @@ public class Deform : MonoBehaviour
             material = renderer.sharedMaterial;
         }
 
+        UpdateMaterial();
+    }
+
+    public void UpdateMaterial()
+    {
         if (material)
         {
             material.SetVector("_CenterPivot", pivot);
@@ -124,9 +157,9 @@ public class Deform : MonoBehaviour
     {
         deformFactor += amount;
 
-        if (deformFactor < 1)
+        if (deformFactor < 0)
         {
-            deformFactor = 1;
+            deformFactor = 0;
         }
     }
 }

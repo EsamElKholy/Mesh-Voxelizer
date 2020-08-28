@@ -156,20 +156,20 @@ MonoBehaviour:
     overrideState: 1
     value: 1
   depthThreshold:
-    overrideState: 1
-    value: 1
+    overrideState: 0
+    value: 2
   normalThreshold:
-    overrideState: 1
-    value: 0.252
+    overrideState: 0
+    value: 0.558
   depthNormalThreshold:
-    overrideState: 1
+    overrideState: 0
     value: 1
   depthNormalThresholdScale:
-    overrideState: 1
+    overrideState: 0
     value: 0
   color:
     overrideState: 1
-    value: {r: 0, g: 1, b: 0.32725787, a: 1}
+    value: {r: 0.58431375, g: 0.16621196, b: 0, a: 1}
   outlineIntensity:
     overrideState: 1
-    value: 4.05
+    value: 4

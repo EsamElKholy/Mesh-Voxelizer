@@ -9,16 +9,28 @@ struct VertexData
 	float3 normal : NORMAL;
 };
 
-#if defined(SHADOWS_CUBE)
-	struct Interpolators 
+uniform float4 _SlicingPlane;
+void Slice(float4 plane, float3 fragPos)
+{
+	float distance = dot(fragPos.xyz, plane.xyz) + plane.w;
+
+	if (distance < 0)
 	{
-		float4 position : SV_POSITION;
-		float3 lightVec : TEXCOORD0;
-	};
+		discard;
+	}
+}
+#if defined(SHADOWS_CUBE)
+struct Interpolators 
+{
+	float4 position : SV_POSITION;
+	float3 lightVec : TEXCOORD0;
+	float3 worldPos : TEXCOORD4;
+};
 
 	Interpolators MyShadowVertexProgram (VertexData v) 
 	{
 		Interpolators i;
+		i.worldPos = mul(UNITY_MATRIX_M, v.position).xyz;
 		i.position = UnityObjectToClipPos(v.position);
 		i.lightVec =
 			mul(unity_ObjectToWorld, v.position).xyz - _LightPositionRange.xyz;
@@ -27,20 +39,33 @@ struct VertexData
 
 	float4 MyShadowFragmentProgram (Interpolators i) : SV_TARGET 
 	{
+		Slice(_SlicingPlane, i.worldPos);
+
 		float depth = length(i.lightVec) + unity_LightShadowBias.x;
 		depth *= _LightPositionRange.w;
 		return UnityEncodeCubeShadowDepth(depth);
 	}
 #else
-	float4 MyShadowVertexProgram (VertexData v) : SV_POSITION 
+	struct Interpolators
 	{
+		float4 position : SV_POSITION;
+		float3 worldPos : TEXCOORD4;
+	};
+
+	Interpolators MyShadowVertexProgram (VertexData v)
+	{
+		Interpolators i; 
+		i.worldPos = mul(UNITY_MATRIX_M, v.position).xyz;
 		float4 position =
 			UnityClipSpaceShadowCasterPos(v.position.xyz, v.normal);
-		return UnityApplyLinearShadowBias(position);
+		UnityApplyLinearShadowBias(position);
+		i.position = position;
+		return i;
 	}
 
-	half4 MyShadowFragmentProgram () : SV_TARGET 
+	half4 MyShadowFragmentProgram (Interpolators i) : SV_TARGET
 	{
+		Slice(_SlicingPlane, i.worldPos);
 		return 0;
 	}
 #endif
