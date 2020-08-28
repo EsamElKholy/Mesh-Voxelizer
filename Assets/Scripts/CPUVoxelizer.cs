@@ -149,7 +149,7 @@ public class CPUVoxelizer : MonoBehaviour
         {
             float size = Mathf.Max(meshFilter.mesh.bounds.size.x, meshFilter.mesh.bounds.size.y, meshFilter.mesh.bounds.size.z);
             VoxelOctree2 octree = new VoxelOctree2(meshFilter.mesh.bounds.center, size, res);
-
+            octree.BuildFullTree();
             for (int i = 0; i < meshFilter.sharedMesh.triangles.Length; i += 3)
             {
                 int i0 = meshFilter.sharedMesh.triangles[i + 0];

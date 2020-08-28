@@ -251,17 +251,17 @@ public class MeshFactory : MonoBehaviour
         //mf.mesh.RecalculateTangents();
     }
 
-    private static void CreateVoxelMesh(ref MeshFilter filter, List<Node> nodes)
+    private static void CreateVoxelMesh(ref MeshFilter filter, Node[] nodes)
     {
         if (filter == null)
         {
             return;
         }
 
-        Vector3[] verts = new Vector3[(nodes.Count * 24)];
-        int[] inds = new int[(nodes.Count * 36)];
+        Vector3[] verts = new Vector3[(nodes.Length * 24)];
+        int[] inds = new int[(nodes.Length * 36)];
 
-        for (int count = 0; count < nodes.Count; count++)
+        for (int count = 0; count < nodes.Length; count++)
         {
             Vector3 pos = nodes[count].Position;
             Vector3 size = nodes[count].Size * Vector3.one;
@@ -394,7 +394,7 @@ public class MeshFactory : MonoBehaviour
         return go;
     }
 
-    public static GameObject CreateVoxelObject(string name, List<Node> nodes)
+    public static GameObject CreateVoxelObject(string name, Node[] nodes)
     {
         GameObject go = new GameObject(name);
 
