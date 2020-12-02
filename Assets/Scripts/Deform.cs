@@ -87,22 +87,22 @@ public class Deform : MonoBehaviour
         {
             if (Input.GetKey(KeyCode.RightArrow))
             {
-                Camera.main.transform.Translate(0, 0, -amount * speed * 5 * Time.deltaTime);
+                Camera.main.transform.Translate(0, 0, -amount * speed * 1 * Time.deltaTime);
             }
 
             if (Input.GetKey(KeyCode.LeftArrow))
             {
-                Camera.main.transform.Translate(0, 0, amount * speed * 5 * Time.deltaTime);
+                Camera.main.transform.Translate(0, 0, amount * speed * 1 * Time.deltaTime);
             }
 
             if (Input.GetKey(KeyCode.UpArrow))
             {
-                Camera.main.transform.Translate(0, amount * speed * 5 * Time.deltaTime, 0);
+                Camera.main.transform.Translate(0, amount * speed * 1 * Time.deltaTime, 0);
             }
 
             if (Input.GetKey(KeyCode.DownArrow))
             {
-                Camera.main.transform.Translate(0, -amount * speed * 5 * Time.deltaTime, 0);
+                Camera.main.transform.Translate(0, -amount * speed * 1 * Time.deltaTime, 0);
             }
         }
 

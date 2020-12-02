@@ -71,7 +71,7 @@ Material:
     - _Angle: 0
     - _BumpScale: 0.25
     - _Cutoff: 0.5
-    - _DeformFactor: 12.610687
+    - _DeformFactor: 0
     - _DetailBumpScale: 0.3
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
@@ -92,10 +92,10 @@ Material:
     - _SrcBlend: 1
     - _UVSec: 0
     - _UseOutline: 1
-    - _VoxelSize: 0.115058474
+    - _VoxelSize: 0.03125
     - _ZWrite: 1
     m_Colors:
-    - _CenterPivot: {r: 0, g: -0.3733694, b: -3.9755437, a: 0}
+    - _CenterPivot: {r: 0, g: 0, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _OutlineColor: {r: 0, g: 0.016062737, b: 1, a: 1}

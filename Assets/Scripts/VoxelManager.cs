@@ -47,16 +47,21 @@ public class VoxelManager : MonoBehaviour
     string constructMeshKernel1 = "ConstructMesh1";
     string buildTreeKernel = "BuildTree";
 
+    GameObject output;
+    VoxelOctree octree;
+
     [Range(1, 8)]
     public int voxelTreeDepth = 1;
     public ComputeShader voxelShader;
     VoxelOctree voxelOctree2;
     int currentDepth = 0;
+    bool startPhysics = false;
 
     // Start is called before the first frame update
     void Start()
     {
         Voxelize();
+        //CPUVoxelize();
         currentDepth = voxelTreeDepth;
     }
     private void Update()
@@ -64,13 +69,13 @@ public class VoxelManager : MonoBehaviour
         if (Input.GetKeyUp(KeyCode.PageUp))
         {
             voxelTreeDepth++;
-            voxelTreeDepth = Mathf.Clamp(voxelTreeDepth, 1, 8);
+            voxelTreeDepth = Mathf.Clamp(voxelTreeDepth, 1, 7);
         }
 
         if (Input.GetKeyUp(KeyCode.PageDown))
         {
             voxelTreeDepth--;
-            voxelTreeDepth = Mathf.Clamp(voxelTreeDepth, 1, 8);
+            voxelTreeDepth = Mathf.Clamp(voxelTreeDepth, 1, 7);
         }
 
         if (currentDepth != voxelTreeDepth)
@@ -91,8 +96,23 @@ public class VoxelManager : MonoBehaviour
             d1.pivot = pivot;
             d1.UpdateMaterial();
             child.position = pos;
-            child.rotation = rot;            
+            child.rotation = rot;
+            //CPUVoxelize();
         }
+
+        //if (Input.GetKeyUp(KeyCode.Space))
+        //{
+        //    startPhysics = true;
+        //}
+
+        //if (startPhysics)
+        //{
+        //    if (octree != null)
+        //    {
+        //        octree.UpdateParticles(Time.deltaTime);
+        //        CPUVoxelize();
+        //    }
+        //}
     }
 
     public void Voxelize()
@@ -192,6 +212,32 @@ public class VoxelManager : MonoBehaviour
         vertBuffer.Dispose();
         voxelBuffer.Dispose();
         appendBuffer.Dispose();
+    }
+
+    public void CPUVoxelize()
+    {
+        if (currentDepth != voxelTreeDepth)
+        {
+            octree = CPUVoxelizer.BuildVoxelTree(gameObject, voxelTreeDepth);
+            octree.SetParticles();
+        }
+
+        if (output == null)
+        {
+            output = MeshFactory.CreateVoxelObject(name + "_Voxelized", octree.GetFilledNodes().ToArray(), geomMat);
+            output.AddComponent<Deform>();
+            var ms = output.AddComponent<MeshSlicer>();
+            ms.slicingPlane = GetComponent<MeshSlicer>().slicingPlane;
+            output.transform.SetParent(transform);
+            output.transform.localPosition = Vector3.zero;
+            geomMat.SetFloat("_VoxelSize", octree.MaxSize / Mathf.Pow(2, octree.MaxDepth));
+        }
+        else
+        {
+            var filter = output.GetComponent<MeshFilter>();
+            MeshFactory.CreateVoxelMesh1(ref filter, octree.GetFilledNodes().ToArray());
+            geomMat.SetFloat("_VoxelSize", octree.MaxSize / Mathf.Pow(2, octree.MaxDepth));
+        }
     }
 
     //private void OnDrawGizmos()

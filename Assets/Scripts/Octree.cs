@@ -34,14 +34,18 @@ public struct Node
 
 public class VoxelOctree
 {
-    public Node[] Nodes;// = new List<Node>();
+    public Node[] Nodes;
     public List<Node> FilledNodes = new List<Node>();
+    public List<Particle> particles = new List<Particle>();
     public int MaxDepth;
     public float MaxSize;
     public int NodeCount;
+    public ParticleForceRegistery forceRegistery;
 
     public VoxelOctree(Vector3 position, float size, int maxDepth)
     {
+        forceRegistery = new ParticleForceRegistery();
+
         MaxDepth = maxDepth;
         int s = 0;
         for (int k = 0; k <= MaxDepth; k++)
@@ -151,105 +155,10 @@ public class VoxelOctree
                 sum += (node.Index - previousIndex) * (int)Mathf.Pow(8, MaxDepth - node.CurrentDepth);
                 node.FirstLeaf = sum;
                 node.LastLeaf = node.FirstLeaf + stride - 1;
-            }
-
-            int current = 0;
-            int[] tempNodes = new int[10];
-            Vector3[] tempNodesP = new Vector3[10];
-            int parentIndex = node.Parent;
-           
-            while (parentIndex >= 0)
-            {
-                if (parentIndex != 0)
-                {
-                    tempNodes[current] = parentIndex;
-                    tempNodesP[current] = Nodes[0].Position;
-                    current++;
-                }
-                else
-                {
-                    break;
-                }
-
-                parentIndex = (parentIndex - 1) / 8;
-            }
-            current--;
-
-            int max = current;
-            while (current >= 0)
-            {
-                int a1 = 1;
-                int b1 = 0;
-                int currentIndex = tempNodes[current];
-                int tempCurrentDepth = 0;
-                for (int j = 1; j <= MaxDepth; j++)
-                {
-                    a1 += (int)Mathf.Pow(8, j);
-                    b1 += (int)Mathf.Pow(8, j - 1);
-
-                    if (currentIndex >= b1 && currentIndex < a1)
-                    {
-                        tempCurrentDepth = j;
-                        break;
-                    }
-                }
-
-                if (current == max)
-                {
-                    tempNodesP[current] = Nodes[0].Position;
-                }
-                else
-                {
-                    tempNodesP[current] = tempNodesP[current + 1];
-                }
-                float size = MaxSize / Mathf.Pow(2, tempCurrentDepth);
-
-                if (((currentIndex % 8) & 4) == 4)
-                {
-                    tempNodesP[current].y += (size / 2);
-                }
-                else
-                {
-                    tempNodesP[current].y -= (size / 2);
-                }
-
-                if (((currentIndex % 8) & 2) == 2)
-                {
-                    tempNodesP[current].x += (size / 2);
-                }
-                else
-                {
-                    tempNodesP[current].x -= (size / 2);
-                }
-
-                if (((currentIndex % 8) & 1) == 1)
-                {
-                    tempNodesP[current].z += (size / 2);
-                }
-                else
-                {
-                    tempNodesP[current].z -= (size / 2);
-                }
-
-                current--;
-            }
-
-            int p = 0;
-
-            for (int z = 0; z < max; z++)
-            {
-                if (node.Parent == tempNodes[z])
-                {
-                    p = z;
-                    break;
-                }
-            }
+            }                     
 
             node.Size = MaxSize / Mathf.Pow(2, currentDepth);
-            node.Position = tempNodesP[p];
-
-            //node.Size = MaxSize / Mathf.Pow(2, currentDepth);
-            //node.Position = Nodes[node.Parent].Position;
+            node.Position = Nodes[node.Parent].Position;
 
             if (((i % 8) & 4) == 4)
             {
@@ -324,6 +233,7 @@ public class VoxelOctree
                         var node = Nodes[j];
                         if (node.Value == 0)
                         {
+                            node.Value = 1;
                             FilledNodes.Add(node);
                         }
 
@@ -341,17 +251,67 @@ public class VoxelOctree
         }
     }
 
-    public List<Node> GetFilledNodes()
+    public List<Node> GetFilledNodes(bool recalculate = false)
     {
-        List<Node> filledNodes = new List<Node>();
+        if (recalculate)
+        {
+            List<Node> filledNodes = new List<Node>();
+            for (int i = 0; i < Nodes.Length; i++)
+            {
+                if (Nodes[i].Value == 1)
+                {
+                    filledNodes.Add(Nodes[i]);
+                }
+            }
+
+            FilledNodes = filledNodes;
+
+            return FilledNodes;
+        }
+
+        return FilledNodes;
+    }
+
+    public void SetParticles()
+    {
+        particles = new List<Particle>();
         for (int i = 0; i < Nodes.Length; i++)
         {
             if (Nodes[i].Value == 1)
             {
-                filledNodes.Add(Nodes[i]);
+                Particle particle = new Particle(Nodes[i].Position, Random.Range(10, 25));
+                particle.Damping = 0.95f;
+                //AnchorSpring anchor = new AnchorSpring(Nodes[i].Position, 20, Nodes[i].Position.magnitude);
+                //forceRegistery.Add(ref particle, anchor);
+                ParticleGravity gravity = new ParticleGravity(new Vector3(Random.Range(-4f, 4f), -5f, Random.Range(-4f, 4f)));
+                forceRegistery.Add(ref particle, gravity);
+                //ParticleDrag drag = new ParticleDrag(1.05f * 35, 0);
+                //forceRegistery.Add(ref particle, drag);
+
+                Buoyancy buoyancy = new Buoyancy(2.65f, 3, 0, 1.6f);
+                forceRegistery.Add(ref particle, buoyancy);
+
+                particles.Add(particle);
             }
         }
-        return filledNodes;
+    }
+
+    public void UpdateParticles(float dt)
+    {
+        GetFilledNodes();
+
+        forceRegistery.UpdateForces(dt);
+
+        for (int i = 0; i < particles.Count; i++)
+        {
+            //particles[i].AddForce(new Vector3(Random.Range(-15, 15), 2, Random.Range(-15, 15)));
+            //particles[i].AddForce(new Vector3(0, -5, 0));
+
+            particles[i].Integrate(dt);
+            var node = FilledNodes[i];
+            node.Position = particles[i].Position;
+            FilledNodes[i] = node;
+        }
     }
 
     public void DrawTree()

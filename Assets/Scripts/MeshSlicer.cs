@@ -23,7 +23,7 @@ public class MeshSlicer : MonoBehaviour
 
         if (slicingPlane)
         {
-            if (transform.parent.GetComponent<MeshSlicer>())
+            if (transform.parent && transform.parent.GetComponent<MeshSlicer>())
             {
                 slicingPlane.transform.position = transform.parent.GetComponent<MeshSlicer>().slicingPlane.transform.position;
             }
@@ -31,6 +31,8 @@ public class MeshSlicer : MonoBehaviour
             {
                 slicingPlane.ResetPlanePosition(false);
             }
+
+            //slicingPlane.ResetPlanePosition(true);
         }
     }
 

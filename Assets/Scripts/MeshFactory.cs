@@ -121,15 +121,50 @@ public class MeshFactory : MonoBehaviour
         //mf.mesh.RecalculateTangents();
     }
 
-    public static GameObject CreateVoxelObject(string name, Node[] nodes)
+    public static void CreateVoxelMesh1(ref MeshFilter filter, Node[] nodes)
+    {
+        if (filter == null)
+        {
+            return;
+        }
+
+        Vector3[] verts = new Vector3[(nodes.Length)];
+        int[] inds = new int[(nodes.Length * 3)];
+
+        for (int count = 0; count < nodes.Length; count++)
+        {
+            Vector3 pos = nodes[count].Position;
+
+            verts[count] = pos;            
+
+            //Up
+            inds[count * 3 + 0] = count;
+            inds[count * 3 + 1] = count;
+            inds[count * 3 + 2] = count;            
+        }
+
+        filter.mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        filter.mesh.Clear();
+        filter.mesh.vertices = verts;
+        filter.mesh.triangles = inds;
+    }
+
+    public static GameObject CreateVoxelObject(string name, Node[] nodes, Material mat = null)
     {
         GameObject go = new GameObject(name);
 
         var filter = go.AddComponent<MeshFilter>();
         var renderer = go.AddComponent<MeshRenderer>();
-        renderer.material = new Material(Shader.Find("Diffuse"));
-
-        CreateVoxelMesh(ref filter, nodes);
+        if (mat == null)
+        {
+            renderer.material = new Material(Shader.Find("Diffuse"));
+            CreateVoxelMesh(ref filter, nodes);
+        }
+        else
+        {
+            renderer.sharedMaterial = mat;
+            CreateVoxelMesh1(ref filter, nodes);
+        }
 
         return go;
     }
