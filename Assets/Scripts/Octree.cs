@@ -193,6 +193,65 @@ public class VoxelOctree
         }
     }
 
+    public List<Node> CheckRay(Ray ray, Transform transform)
+    {
+        List<Node> hitNodes = new List<Node>();
+        int min = 0;
+
+        for (int i = 0; i <= MaxDepth - 1; i++)
+        {
+            min += (int)Mathf.Pow(8, i);
+        }
+
+        for (int i = min; i < Nodes.Length;)
+        {
+            int parentIndex = Nodes[i].Parent;
+            int lastSkip = 0;
+            while (parentIndex != -1)
+            {
+                var parent = Nodes[parentIndex];
+                Bounds bounds = new Bounds(transform.TransformPoint(parent.Position), Vector3.one * parent.Size);
+                int intersecting = bounds.IntersectRay(ray) ? 1 : 0;
+
+                if (intersecting == 1)
+                {
+                    break;
+                }
+                else
+                {
+                    lastSkip = parent.LastLeaf;
+                    parentIndex = parent.Parent;
+                }
+            }
+
+            if (lastSkip == 0)
+            {
+                for (int j = i; j < i + 8; j++)
+                {
+                    Bounds bounds = new Bounds(transform.TransformPoint(Nodes[j].Position), Vector3.one * Nodes[j].Size);
+                    int intersecting = bounds.IntersectRay(ray) ? 1 : 0;
+                    if (intersecting == 1)
+                    {
+                        var node = Nodes[j];
+
+                        if (node.Value > 0)
+                        {
+                            hitNodes.Add(node);                        
+                        }
+                    }
+                }
+
+                i += 8;
+            }
+            else
+            {
+                i = lastSkip + 1;
+            }
+        }
+
+        return hitNodes;
+    }
+
     public void CheckTriangles(Vector3 v0, Vector3 v1, Vector3 v2)
     {
         int min = 0;

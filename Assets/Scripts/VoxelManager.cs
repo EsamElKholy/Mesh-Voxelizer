@@ -53,7 +53,7 @@ public class VoxelManager : MonoBehaviour
     [Range(1, 8)]
     public int voxelTreeDepth = 1;
     public ComputeShader voxelShader;
-    VoxelOctree voxelOctree2;
+    public VoxelOctree voxelOctree2;
     int currentDepth = 0;
     bool startPhysics = false;
 
@@ -122,6 +122,14 @@ public class VoxelManager : MonoBehaviour
         float maxSize1 = Mathf.Max(filter.mesh.bounds.size.x, filter.mesh.bounds.size.y, filter.mesh.bounds.size.z);
         voxelOctree2 = new VoxelOctree(filter.mesh.bounds.center, maxSize1, voxelTreeDepth);
 
+        BuildTree();
+        FillTree();
+        UpdateFilledNodes();
+        ConstructMesh();
+    }
+
+    private void BuildTree() 
+    {
         var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
         voxelBuffer.SetData(voxelOctree2.Nodes);
 
@@ -130,7 +138,18 @@ public class VoxelManager : MonoBehaviour
         voxelShader.SetInt(voxelCount, voxelOctree2.Nodes.Length);
 
         voxelShader.SetBuffer(voxelShader.FindKernel(buildTreeKernel), voxelOctreeBuffer, voxelBuffer);
-        voxelShader.Dispatch(voxelShader.FindKernel(buildTreeKernel), voxelOctree2.NodeCount/64 + 1, 1, 1);
+        voxelShader.Dispatch(voxelShader.FindKernel(buildTreeKernel), voxelOctree2.NodeCount / 64 + 1, 1, 1);
+        voxelBuffer.GetData(voxelOctree2.Nodes);
+
+        voxelBuffer.Dispose();
+    }
+
+    private void FillTree() 
+    {
+        var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
+        voxelBuffer.SetData(voxelOctree2.Nodes);
+
+        MeshFilter filter = GetComponent<MeshFilter>();
 
         var verts = filter.mesh.vertices;
         int vCount = verts.Length;
@@ -149,9 +168,19 @@ public class VoxelManager : MonoBehaviour
         voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), vertexBuffer, vertBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), indexBuffer, indBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(fillTreeKernel), voxelOctreeBuffer, voxelBuffer);
-        voxelShader.Dispatch(voxelShader.FindKernel(fillTreeKernel), (indCount / (3*64)) + 1, 1, 1);
-     
+        voxelShader.Dispatch(voxelShader.FindKernel(fillTreeKernel), (indCount / (3 * 64)) + 1, 1, 1);
+        voxelBuffer.GetData(voxelOctree2.Nodes);
 
+        voxelBuffer.Dispose();
+        indBuffer.Dispose();
+        vertBuffer.Dispose();
+    }
+
+    public void UpdateFilledNodes() 
+    {
+        var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
+        voxelBuffer.SetData(voxelOctree2.Nodes); 
+        
         var filledVoxelsBuffer = new ComputeBuffer(voxelOctree2.NodeCount, Marshal.SizeOf(typeof(Node)), ComputeBufferType.Append);
         filledVoxelsBuffer.SetCounterValue(0);
         voxelShader.SetBuffer(voxelShader.FindKernel(getFilledVoxelsKernel), voxelOctreeBuffer, voxelBuffer);
@@ -163,24 +192,31 @@ public class VoxelManager : MonoBehaviour
         appendBuffer.SetData(counter);
         ComputeBuffer.CopyCount(filledVoxelsBuffer, appendBuffer, 0);
         appendBuffer.GetData(counter);
+
         Node[] nodes = new Node[counter[0]];
-        filledVoxelsBuffer.GetData(nodes);
+        filledVoxelsBuffer.GetData(nodes);        
+        voxelOctree2.FilledNodes = new List<Node>(nodes);
 
-        ComputeBuffer filledVoxels = new ComputeBuffer(counter[0], Marshal.SizeOf(typeof(Node)));
-        filledVoxels.SetData(nodes);
-        //filledVoxelsBuffer.Dispose();
+        filledVoxelsBuffer.Dispose();
+        appendBuffer.Dispose();
+        voxelBuffer.Dispose();
+    }
 
-        indBuffer = new ComputeBuffer(counter[0] * 3, sizeof(int));
-        var ind = new int[counter[0] * 3];
+    private void ConstructMesh() 
+    {
+        ComputeBuffer filledVoxels = new ComputeBuffer(voxelOctree2.FilledNodes.Count, Marshal.SizeOf(typeof(Node)));
+        filledVoxels.SetData(voxelOctree2.FilledNodes);
+        var indBuffer = new ComputeBuffer(voxelOctree2.FilledNodes.Count * 3, sizeof(int));
+        var ind = new int[voxelOctree2.FilledNodes.Count * 3];
         //indBuffer1.SetData(ind);
-        vertBuffer = new ComputeBuffer(counter[0], Marshal.SizeOf(typeof(Vector3)));
-        var v = new Vector3[counter[0]];
+        var vertBuffer = new ComputeBuffer(voxelOctree2.FilledNodes.Count, Marshal.SizeOf(typeof(Vector3)));
+        var v = new Vector3[voxelOctree2.FilledNodes.Count];
         //vertBuffer1.SetData(v);
-        voxelShader.SetInt(filledVoxelsCount, counter[0]);
+        voxelShader.SetInt(filledVoxelsCount, voxelOctree2.FilledNodes.Count);
         voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), outVertexBuffer, vertBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), outIndexBuffer, indBuffer);
         voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), _filledVoxelPositionsBuffer, filledVoxels);
-        voxelShader.Dispatch(voxelShader.FindKernel(constructMeshKernel1), counter[0] / 64 + 1, 1, 1);
+        voxelShader.Dispatch(voxelShader.FindKernel(constructMeshKernel1), voxelOctree2.FilledNodes.Count / 64 + 1, 1, 1);
         //var nodes1 = voxelOctree2.GetFilledNodes();
 
         //MeshFactory.CreateVoxelObject(name + "_Voxelized1", nodes);
@@ -207,11 +243,38 @@ public class VoxelManager : MonoBehaviour
         filter1.GetComponent<Renderer>().bounds.Expand(1000);
 
         filledVoxels.Dispose();
-        filledVoxelsBuffer.Dispose();
         indBuffer.Dispose();
         vertBuffer.Dispose();
-        voxelBuffer.Dispose();
-        appendBuffer.Dispose();
+    }
+
+    public void UpdateMesh(GameObject go) 
+    {
+        var filter1 = go.GetComponent<MeshFilter>();
+
+        ComputeBuffer filledVoxels = new ComputeBuffer(voxelOctree2.FilledNodes.Count, Marshal.SizeOf(typeof(Node)));
+        filledVoxels.SetData(voxelOctree2.FilledNodes);
+        var indBuffer = new ComputeBuffer(voxelOctree2.FilledNodes.Count * 3, sizeof(int));
+        var ind = new int[voxelOctree2.FilledNodes.Count * 3];
+        //indBuffer1.SetData(ind);
+        var vertBuffer = new ComputeBuffer(voxelOctree2.FilledNodes.Count, Marshal.SizeOf(typeof(Vector3)));
+        var v = new Vector3[voxelOctree2.FilledNodes.Count];
+        //vertBuffer1.SetData(v);
+        voxelShader.SetInt(filledVoxelsCount, voxelOctree2.FilledNodes.Count);
+        voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), outVertexBuffer, vertBuffer);
+        voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), outIndexBuffer, indBuffer);
+        voxelShader.SetBuffer(voxelShader.FindKernel(constructMeshKernel1), _filledVoxelPositionsBuffer, filledVoxels);
+        voxelShader.Dispatch(voxelShader.FindKernel(constructMeshKernel1), voxelOctree2.FilledNodes.Count / 64 + 1, 1, 1);
+
+        filter1.mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        filter1.mesh.Clear();
+        vertBuffer.GetData(v);
+        indBuffer.GetData(ind);
+        filter1.mesh.vertices = v;
+        filter1.mesh.triangles = ind;
+
+        filledVoxels.Dispose();
+        indBuffer.Dispose();
+        vertBuffer.Dispose();
     }
 
     public void CPUVoxelize()
