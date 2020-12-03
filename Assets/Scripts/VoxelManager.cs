@@ -46,6 +46,10 @@ public class VoxelManager : MonoBehaviour
     string constructMeshKernel = "ConstructMesh";
     string constructMeshKernel1 = "ConstructMesh1";
     string buildTreeKernel = "BuildTree";
+    string sphereOrigin = "SpherecastOrigin";
+    string sphereRaduis = "SphereRadius";
+    string enableVoxelsInSphereKernel = "EnableVoxelsInSphere";
+    string disableVoxelsInSphereKernel = "DisableVoxelsInSphere";
 
     GameObject output;
     VoxelOctree octree;
@@ -199,6 +203,40 @@ public class VoxelManager : MonoBehaviour
 
         filledVoxelsBuffer.Dispose();
         appendBuffer.Dispose();
+        voxelBuffer.Dispose();
+    }
+
+    public void EnableNodesInSphere(Vector3 position, float raduis) 
+    {
+        var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
+        voxelBuffer.SetData(voxelOctree2.Nodes);
+        voxelShader.SetVector(sphereOrigin, position);
+        voxelShader.SetFloat(sphereRaduis, raduis);
+
+        voxelShader.SetBuffer(voxelShader.FindKernel(enableVoxelsInSphereKernel), voxelOctreeBuffer, voxelBuffer);
+        voxelShader.Dispatch(voxelShader.FindKernel(enableVoxelsInSphereKernel), voxelOctree2.NodeCount / 64 + 1, 1, 1);
+        voxelBuffer.GetData(voxelOctree2.Nodes);
+
+        voxelBuffer.Dispose();
+    }
+
+    public void DisableNodesInSphere(Vector3 position, float raduis)
+    {
+        var voxelBuffer = new ComputeBuffer(voxelOctree2.Nodes.Length, Marshal.SizeOf(typeof(Node)));
+        voxelBuffer.SetData(voxelOctree2.Nodes);
+        ComputeBuffer filledVoxels = new ComputeBuffer(voxelOctree2.FilledNodes.Count, Marshal.SizeOf(typeof(Node)));
+        filledVoxels.SetData(voxelOctree2.FilledNodes);
+
+        voxelShader.SetInt(filledVoxelsCount, voxelOctree2.FilledNodes.Count);
+        voxelShader.SetVector(sphereOrigin, position);
+        voxelShader.SetFloat(sphereRaduis, raduis);
+
+        voxelShader.SetBuffer(voxelShader.FindKernel(disableVoxelsInSphereKernel), _filledVoxelPositionsBuffer, filledVoxels);
+        voxelShader.SetBuffer(voxelShader.FindKernel(disableVoxelsInSphereKernel), voxelOctreeBuffer, voxelBuffer);
+        voxelShader.Dispatch(voxelShader.FindKernel(disableVoxelsInSphereKernel), voxelOctree2.FilledNodes.Count / 64 + 1, 1, 1);
+        voxelBuffer.GetData(voxelOctree2.Nodes);
+
+        filledVoxels.Dispose();
         voxelBuffer.Dispose();
     }
 

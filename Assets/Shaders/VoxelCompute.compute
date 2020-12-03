@@ -4,6 +4,8 @@
 #pragma kernel ConstructMesh1
 #pragma kernel GetFilledVoxels
 #pragma kernel BuildTree
+#pragma kernel DisableVoxelsInSphere
+#pragma kernel EnableVoxelsInSphere
 
 #include "UnityCG.cginc"
 
@@ -12,6 +14,8 @@ int IndexCount;
 int VoxelCount;
 int MaxDepth;
 float MaxSize;
+float3 SpherecastOrigin;
+float SphereRadius;
 CBUFFER_END
 
 struct VoxelOctreeNode 
@@ -462,6 +466,38 @@ void GetFilledVoxels(uint3 id : SV_DispatchThreadID)
 	{
 		FilledVoxelPositionsBuffer.Append(VoxelOctreeBuffer[id.x]);
 	}
+}
+
+[numthreads(64, 1, 1)]
+void DisableVoxelsInSphere(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= FilledVoxelsCount)
+    {
+        return;
+    }
+
+    if (_FilledVoxelPositionsBuffer[id.x].Value == 1)
+    {
+        if (length(_FilledVoxelPositionsBuffer[id.x].Position - SpherecastOrigin) <= SphereRadius + _FilledVoxelPositionsBuffer[id.x].Size / 2)
+        {
+            VoxelOctreeBuffer[_FilledVoxelPositionsBuffer[id.x].Index].Value = 0;
+        }
+    }
+}
+
+[numthreads(64, 1, 1)]
+void EnableVoxelsInSphere(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= VoxelCount)
+    {
+        return;
+    }
+
+    if (VoxelOctreeBuffer[id.x].FirstChild == -1 && 
+        length(VoxelOctreeBuffer[id.x].Position - SpherecastOrigin) <= SphereRadius + VoxelOctreeBuffer[id.x].Size / 2)
+    {
+        VoxelOctreeBuffer[id.x].Value = 1;
+    }
 }
 
 [numthreads(64, 1, 1)]

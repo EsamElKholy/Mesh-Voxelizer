@@ -229,14 +229,15 @@ public class VoxelOctree
                 for (int j = i; j < i + 8; j++)
                 {
                     Bounds bounds = new Bounds(transform.TransformPoint(Nodes[j].Position), Vector3.one * Nodes[j].Size);
-                    int intersecting = bounds.IntersectRay(ray) ? 1 : 0;
+                    float distance = 0;
+                    int intersecting = bounds.IntersectRay(ray, out distance) ? 1 : 0;
                     if (intersecting == 1)
                     {
                         var node = Nodes[j];
 
-                        if (node.Value > 0)
+                        if (node.Value > 0 && distance > node.Size * 1.5f)
                         {
-                            hitNodes.Add(node);                        
+                            hitNodes.Add(node);
                         }
                     }
                 }
@@ -250,6 +251,88 @@ public class VoxelOctree
         }
 
         return hitNodes;
+    }
+
+    public List<Node> CastSphere(Vector3 center, float raduis) 
+    {
+        List<Node> nodes = new List<Node>();
+
+        float maxDistance = raduis + FilledNodes[0].Size / 2;
+
+        for (int i = 0; i < FilledNodes.Count; i++)
+        {
+            float distance = Vector3.Distance(center, FilledNodes[i].Position);
+
+            if (distance <= maxDistance)
+            {
+                nodes.Add(FilledNodes[i]);
+            }
+        }
+
+        return nodes;
+    }
+
+    public List<Node> GetNode(Vector3 position) 
+    {
+        List<Node> result = new List<Node>();        
+
+        int min = 0;
+
+        for (int i = 0; i <= MaxDepth - 1; i++)
+        {
+            min += (int)Mathf.Pow(8, i);
+        }
+
+        for (int i = min; i < Nodes.Length;)
+        {
+            int parentIndex = Nodes[i].Parent;
+            int lastSkip = 0;
+            while (parentIndex != -1)
+            {
+                var parent = Nodes[parentIndex];
+                Bounds bounds = new Bounds(parent.Position, Vector3.one * parent.Size);
+                int intersecting = bounds.Contains(position) ? 1 : 0;
+
+                if (intersecting == 1)
+                {
+                    break;
+                }
+                else
+                {
+                    lastSkip = parent.LastLeaf;
+                    parentIndex = parent.Parent;
+                }
+            }
+
+            if (lastSkip == 0)
+            {
+                for (int j = i; j < i + 8; j++)
+                {
+                    Bounds bounds = new Bounds(Nodes[j].Position, Vector3.one * Nodes[j].Size);
+                   
+                    int intersecting = bounds.Contains(position) ? 1 : 0;
+                    if (intersecting == 1)
+                    {
+                        var node = Nodes[j];
+
+                        if (node.Value == 0)
+                        {                            
+                            {
+                                result.Add(node);
+                            }
+                        }
+                    }
+                }
+
+                i += 8;
+            }
+            else
+            {
+                i = lastSkip + 1;
+            }
+        }
+
+        return result;
     }
 
     public void CheckTriangles(Vector3 v0, Vector3 v1, Vector3 v2)
